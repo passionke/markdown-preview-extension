@@ -1,0 +1,62 @@
+{
+  "name": "markdown-preview-ext",
+  "displayName": "Markdown Preview in Browser",
+  "description": "Preview markdown files in browser with full markdown support, code highlighting, mermaid diagrams, and tables",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:markdownPreview.previewInBrowser"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownPreview.previewInBrowser",
+        "title": "Preview Markdown in Browser"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "markdownPreview.previewInBrowser",
+          "when": "resourceExtname == '.md'",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "markdownPreview.previewInBrowser",
+          "when": "editorLangId == 'markdown'",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.60.0",
+    "typescript": "^4.9.0"
+  },
+  "dependencies": {
+    "highlight.js": "^11.9.0",
+    "markdown-it": "^14.0.0"
+  },
+  "author": "kejiqing",
+  "publisher": "kejiqing",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:passionke/markdown-preview-extension.git"
+  }
+}

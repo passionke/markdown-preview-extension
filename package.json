@@ -15,10 +15,61 @@
   "main": "./out/extension.js",
   "icon": "icon.png",
   "contributes": {
+    "configuration": {
+      "title": "Markdown Preview",
+      "properties": {
+        "markdownPreview.serverPort": {
+          "type": "number",
+          "default": 3000,
+          "description": "HTTP服务器端口（默认3000，如果被占用会自动查找可用端口）",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "markdownPreview.maxSessions": {
+          "type": "number",
+          "default": 50,
+          "description": "最大预览会话数量",
+          "minimum": 10,
+          "maximum": 200
+        },
+        "markdownPreview.sessionTimeout": {
+          "type": "number",
+          "default": 30,
+          "description": "预览会话超时时间（分钟），超过此时间未访问的会话会被自动清理",
+          "minimum": 5,
+          "maximum": 120
+        },
+        "markdownPreview.autoStartServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否自动启动服务器（预览时自动启动）"
+        }
+      }
+    },
     "commands": [
       {
         "command": "markdownPreview.previewInBrowser",
         "title": "Preview Markdown in Browser"
+      },
+      {
+        "command": "markdownPreview.startServer",
+        "title": "Start Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.stopServer",
+        "title": "Stop Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.restartServer",
+        "title": "Restart Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.showServerStatus",
+        "title": "Show Server Status",
+        "category": "Markdown Preview"
       }
     ],
     "menus": {
@@ -66,9 +117,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/passionke/markdown-preview-extension.git"
+    "url": "https://github.com/passionke/markdown-preview-extension"
   },
-  "homepage": "https://github.com/passionke/markdown-preview-extension",
+  "homepage": "https://github.com/passionke/markdown-preview-extension#readme",
   "bugs": {
     "url": "https://github.com/passionke/markdown-preview-extension/issues"
   }

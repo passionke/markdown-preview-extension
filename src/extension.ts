@@ -19,15 +19,28 @@ export function activate(context: vscode.ExtensionContext) {
     // 获取服务器单例
     previewServer = PreviewServer.getInstance();
 
-    // 注册命令
-    const disposable = vscode.commands.registerCommand(
-        'markdownPreview.previewInBrowser',
-        async () => {
-            await previewMarkdownInBrowser();
-        }
+    // 加载配置并更新服务器设置
+    loadConfiguration();
+
+    // 监听配置变化
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('markdownPreview')) {
+                loadConfiguration();
+            }
+        })
     );
 
-    context.subscriptions.push(disposable);
+    // 注册命令
+    const commands = [
+        vscode.commands.registerCommand('markdownPreview.previewInBrowser', previewMarkdownInBrowser),
+        vscode.commands.registerCommand('markdownPreview.startServer', startServer),
+        vscode.commands.registerCommand('markdownPreview.stopServer', stopServer),
+        vscode.commands.registerCommand('markdownPreview.restartServer', restartServer),
+        vscode.commands.registerCommand('markdownPreview.showServerStatus', showServerStatus)
+    ];
+
+    commands.forEach(cmd => context.subscriptions.push(cmd));
 
     // 扩展停用时清理资源
     context.subscriptions.push({
@@ -148,6 +161,82 @@ function openExternalBrowser(url: string): Promise<void> {
         child.unref(); // 允许父进程退出而不等待子进程
         resolve();
     });
+}
+
+/**
+ * 加载配置
+ */
+function loadConfiguration(): void {
+    const config = vscode.workspace.getConfiguration('markdownPreview');
+    if (previewServer) {
+        previewServer.updateConfig({
+            port: config.get<number>('serverPort', 3000),
+            maxSessions: config.get<number>('maxSessions', 50),
+            sessionTimeout: config.get<number>('sessionTimeout', 30)
+        });
+    }
+}
+
+/**
+ * 启动服务器
+ */
+async function startServer(): Promise<void> {
+    try {
+        if (!previewServer) {
+            previewServer = PreviewServer.getInstance();
+            loadConfiguration();
+        }
+        if (previewServer.isRunning()) {
+            vscode.window.showInformationMessage('Preview server is already running.');
+            return;
+        }
+        const port = await previewServer.start();
+        vscode.window.showInformationMessage(`Preview server started on port ${port}`);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`Failed to start server: ${errorMessage}`);
+    }
+}
+
+/**
+ * 停止服务器
+ */
+function stopServer(): void {
+    if (!previewServer || !previewServer.isRunning()) {
+        vscode.window.showInformationMessage('Preview server is not running.');
+        return;
+    }
+    previewServer.stop();
+    vscode.window.showInformationMessage('Preview server stopped.');
+}
+
+/**
+ * 重启服务器
+ */
+async function restartServer(): Promise<void> {
+    if (previewServer && previewServer.isRunning()) {
+        previewServer.stop();
+        // 等待一下确保完全停止
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    await startServer();
+    vscode.window.showInformationMessage('Preview server restarted.');
+}
+
+/**
+ * 显示服务器状态
+ */
+function showServerStatus(): void {
+    if (!previewServer) {
+        previewServer = PreviewServer.getInstance();
+        loadConfiguration();
+    }
+    const status = previewServer.getStatus();
+    const statusMessage = status.isRunning
+        ? `Server Status:\n- Running: Yes\n- Port: ${status.port}\n- Active Sessions: ${status.sessionCount}/${status.maxSessions}`
+        : `Server Status:\n- Running: No\n- Port: ${status.port}\n- Active Sessions: ${status.sessionCount}/${status.maxSessions}`;
+    
+    vscode.window.showInformationMessage(statusMessage);
 }
 
 /**

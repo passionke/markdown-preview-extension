@@ -22,8 +22,8 @@ export class PreviewServer {
     private port: number = 3000;
     private previewSessions: Map<string, PreviewSession> = new Map();
     private cleanupInterval: NodeJS.Timeout | null = null;
-    private readonly MAX_SESSIONS = 50;
-    private readonly SESSION_TIMEOUT = 30 * 60 * 1000; // 30分钟
+    private maxSessions: number = 50;
+    private sessionTimeout: number = 30 * 60 * 1000; // 30分钟
 
     private constructor() {
         // 私有构造函数，确保单例模式
@@ -37,6 +37,21 @@ export class PreviewServer {
             PreviewServer.instance = new PreviewServer();
         }
         return PreviewServer.instance;
+    }
+
+    /**
+     * 更新配置
+     */
+    public updateConfig(config: { port?: number; maxSessions?: number; sessionTimeout?: number }): void {
+        if (config.port !== undefined) {
+            this.port = config.port;
+        }
+        if (config.maxSessions !== undefined) {
+            this.maxSessions = config.maxSessions;
+        }
+        if (config.sessionTimeout !== undefined) {
+            this.sessionTimeout = config.sessionTimeout * 60 * 1000; // 转换为毫秒
+        }
     }
 
     /**
@@ -151,7 +166,7 @@ export class PreviewServer {
         const previewId = hash.digest('hex').substring(0, 16);
 
         // 检查会话数量限制
-        if (this.previewSessions.size >= this.MAX_SESSIONS) {
+        if (this.previewSessions.size >= this.maxSessions) {
             this.cleanupOldestSession();
         }
 
@@ -193,7 +208,7 @@ export class PreviewServer {
         const expiredIds: string[] = [];
 
         this.previewSessions.forEach((session, id) => {
-            if (now - session.lastAccessed > this.SESSION_TIMEOUT) {
+            if (now - session.lastAccessed > this.sessionTimeout) {
                 expiredIds.push(id);
             }
         });
@@ -252,5 +267,24 @@ export class PreviewServer {
      */
     public getPort(): number {
         return this.port;
+    }
+
+    /**
+     * 获取服务器状态信息
+     */
+    public getStatus(): { isRunning: boolean; port: number; sessionCount: number; maxSessions: number } {
+        return {
+            isRunning: this.server !== null,
+            port: this.port,
+            sessionCount: this.previewSessions.size,
+            maxSessions: this.maxSessions
+        };
+    }
+
+    /**
+     * 检查服务器是否运行
+     */
+    public isRunning(): boolean {
+        return this.server !== null;
     }
 }

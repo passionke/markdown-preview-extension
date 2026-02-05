@@ -55,8 +55,20 @@
   "author": "kejiqing",
   "publisher": "kejiqing",
   "license": "MIT",
+  "keywords": [
+    "markdown",
+    "preview",
+    "browser",
+    "mermaid",
+    "highlight",
+    "syntax-highlighting"
+  ],
   "repository": {
     "type": "git",
-    "url": "git@github.com:passionke/markdown-preview-extension.git"
+    "url": "https://github.com/passionke/markdown-preview-extension.git"
+  },
+  "homepage": "https://github.com/passionke/markdown-preview-extension",
+  "bugs": {
+    "url": "https://github.com/passionke/markdown-preview-extension/issues"
   }
 }

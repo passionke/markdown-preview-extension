@@ -1,6 +1,19 @@
 import * as http from 'http';
 import * as url from 'url';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/** 图片扩展名 -> Content-Type，跨平台一致 */
+const MIME_TYPES: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.svgz': 'image/svg+xml'
+};
 
 /**
  * 预览会话信息
@@ -8,6 +21,8 @@ import * as crypto from 'crypto';
 export interface PreviewSession {
     htmlContent: string;
     filePath: string;
+    /** 文档所在目录，用于解析相对路径图片 */
+    basePath: string;
     createdAt: number;
     lastAccessed: number;
 }
@@ -76,10 +91,15 @@ export class PreviewServer {
                 });
 
                 this.server.on('error', (err: NodeJS.ErrnoException) => {
-                    if (err.code === 'EADDRINUSE') {
-                        // 端口被占用，尝试下一个端口
+                    if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+                        // 端口被占用或无权限（如 Windows 保留端口），尝试下一个端口
                         this.server?.close();
-                        tryStart(port + 1);
+                        this.server = null;
+                        if (port < 65535) {
+                            tryStart(port + 1);
+                        } else {
+                            reject(err);
+                        }
                     } else {
                         reject(err);
                     }
@@ -115,20 +135,29 @@ export class PreviewServer {
             const session = this.previewSessions.get(previewId);
 
             if (session) {
-                // 更新最后访问时间
                 session.lastAccessed = Date.now();
-
-                // 返回HTML内容
+                // 将相对路径的 img src 重写为 /preview/{id}/asset/xxx，以便本服务器提供图片
+                const baseUrl = `/preview/${previewId}/asset/`;
+                const rewrittenHtml = session.htmlContent.replace(
+                    /(<img[^>]+src=)(["'])(?!(?:https?:|\/|data:))([^"']+)\2/gi,
+                    (_, before, quote, src) => `${before}${quote}${baseUrl}${src}${quote}`
+                );
                 res.writeHead(200, {
                     'Content-Type': 'text/html; charset=utf-8',
                     'Cache-Control': 'no-cache'
                 });
-                res.end(session.htmlContent);
+                res.end(rewrittenHtml);
             } else {
-                // 预览不存在
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('Preview not found');
             }
+            return;
+        }
+
+        // 处理相对路径图片：/preview/{previewId}/asset/{relativePath}
+        const assetMatch = pathname.match(/^\/preview\/([a-f0-9]+)\/asset\/(.+)$/);
+        if (assetMatch && req.method === 'GET') {
+            this.servePreviewAsset(assetMatch[1], assetMatch[2], res);
             return;
         }
 
@@ -154,6 +183,48 @@ export class PreviewServer {
     }
 
     /**
+     * 提供预览内的相对路径资源（图片等），路径与平台无关
+     */
+    private servePreviewAsset(previewId: string, urlEncodedPath: string, res: http.ServerResponse): void {
+        const session = this.previewSessions.get(previewId);
+        if (!session?.basePath) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Not found');
+            return;
+        }
+        let relativePath: string;
+        try {
+            relativePath = decodeURIComponent(urlEncodedPath);
+        } catch {
+            res.writeHead(400, { 'Content-Type': 'text/plain' });
+            res.end('Bad request');
+            return;
+        }
+        // URL 恒为正斜杠，转为当前平台分隔符后 resolve（path 模块跨平台）
+        relativePath = relativePath.replace(/\//g, path.sep);
+        const fullPath = path.normalize(path.resolve(session.basePath, relativePath));
+        const rel = path.relative(session.basePath, fullPath);
+        if (rel.startsWith('..') || path.isAbsolute(rel)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain' });
+            res.end('Forbidden');
+            return;
+        }
+        fs.readFile(fullPath, (err, data) => {
+            if (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not found');
+                return;
+            }
+            const ext = path.extname(fullPath).toLowerCase();
+            res.writeHead(200, {
+                'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+                'Cache-Control': 'private, max-age=3600'
+            });
+            res.end(data);
+        });
+    }
+
+    /**
      * 注册预览会话
      * @param htmlContent 渲染后的HTML内容
      * @param filePath 原始markdown文件路径
@@ -170,10 +241,11 @@ export class PreviewServer {
             this.cleanupOldestSession();
         }
 
-        // 注册新会话
+        const basePath = path.dirname(filePath);
         const session: PreviewSession = {
             htmlContent,
             filePath,
+            basePath,
             createdAt: Date.now(),
             lastAccessed: Date.now()
         };

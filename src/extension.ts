@@ -123,44 +123,61 @@ async function previewMarkdownInBrowser(): Promise<void> {
 }
 
 /**
- * 在外部浏览器中打开URL
- * @param url 要打开的URL
+ * 使用系统默认浏览器打开 URL（各平台标准方式，无 hack）
+ * 失败时回退到 vscode.env.openExternal。
  */
 function openExternalBrowser(url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const platform = process.platform;
-        let command: string;
+    const fallback = (): Thenable<boolean> =>
+        vscode.env.openExternal(vscode.Uri.parse(url));
 
-        // 根据操作系统选择命令
-        if (platform === 'darwin') {
-            // macOS
-            command = 'open';
-        } else if (platform === 'win32') {
-            // Windows
-            command = 'start';
-        } else {
-            // Linux 和其他 Unix 系统
-            command = 'xdg-open';
+    return new Promise((resolve, reject) => {
+        const platform = process.platform as string;
+        const { command, args } = getOpenCommand(platform, url);
+
+        if (!command) {
+            fallback().then(() => resolve(), reject);
+            return;
         }
 
-        // 执行命令打开浏览器
-        const child = child_process.spawn(command, [url], {
-            detached: true,
-            stdio: 'ignore'
-        });
+        try {
+            const child = child_process.spawn(command, args, {
+                detached: true,
+                stdio: 'ignore'
+            });
 
-        child.on('error', (error) => {
-            // 如果系统命令失败，回退到 vscode.env.openExternal
-            console.warn(`Failed to open browser with system command: ${error.message}`);
-            vscode.env.openExternal(vscode.Uri.parse(url)).then(
-                () => resolve(),
-                (err) => reject(err)
-            );
-        });
+            child.on('error', (err: NodeJS.ErrnoException) => {
+                console.warn(`[Markdown Preview] open failed: ${err.message}, using fallback`);
+                fallback().then(() => resolve(), reject);
+            });
 
-        child.unref(); // 允许父进程退出而不等待子进程
-        resolve();
+            child.unref();
+            resolve();
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`[Markdown Preview] spawn failed: ${msg}, using fallback`);
+            fallback().then(() => resolve(), reject);
+        }
     });
+}
+
+/**
+ * 各平台打开 URL 的标准命令（仅使用各 OS 官方/通用方式，无 hack）
+ * - win32: start 为 cmd 内置，需通过 cmd /c 调用；第一个空串为窗口标题（start 语法要求）
+ * - darwin: open 为系统命令
+ * - linux/freebsd/openbsd/其他: xdg-open 为 freedesktop 标准，未安装时 spawn 失败会走 fallback
+ */
+function getOpenCommand(platform: string, url: string): { command: string | null; args: string[] } {
+    switch (platform) {
+        case 'win32':
+            return { command: 'cmd', args: ['/c', 'start', '', url] };
+        case 'darwin':
+            return { command: 'open', args: [url] };
+        case 'linux':
+        case 'freebsd':
+        case 'openbsd':
+        default:
+            return { command: 'xdg-open', args: [url] };
+    }
 }
 
 /**

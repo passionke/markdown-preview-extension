@@ -138,9 +138,10 @@ npm run watch
 ### 本地打包
 
 ```bash
-npm run compile
-vsce package
+npm run vsix
 ```
+
+（内部会执行 compile + vsce package，且带依赖。勿手敲 `vsce package --no-dependencies`。）
 
 ### 发布到市场
 

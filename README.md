@@ -12,6 +12,17 @@
 - ✅ **外部浏览器** - 在系统默认浏览器中打开预览
 - ✅ **多预览隔离** - 每个预览都有独立的URL，互不干扰
 
+## 安装到 Cursor
+
+推荐用命令行安装（需先在本目录执行 `npm install && npm run vsix` 生成 `.vsix`）：
+
+```powershell
+& "C:\Users\$env:USERNAME\AppData\Local\Programs\cursor\Cursor.exe" --install-extension "D:\刀枫\auto\markdown-preview-extension-temp\markdown-preview-ext-0.1.0.vsix"
+```
+
+安装后 Reload 窗口，右键任意 `.md` → **Preview Markdown in Browser**，在浏览器中确认：**链接可点击（新标签打开）、图片可点击（灯箱或跳转）**。  
+详细步骤与验证说明见 [安装说明.md](./安装说明.md)。
+
 ## 快速开始
 
 ### 预览Markdown文件

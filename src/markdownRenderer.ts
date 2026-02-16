@@ -56,7 +56,12 @@ export class MarkdownRenderer {
      */
     public render(markdownContent: string): string {
         // 使用markdown-it渲染markdown内容
-        const htmlContent = this.md.render(markdownContent);
+        let htmlContent = this.md.render(markdownContent);
+
+        // 为所有链接添加 target="_blank" 与 rel="noopener noreferrer"，预览中点击可打开
+        htmlContent = this.ensureLinksOpenInNewTab(htmlContent);
+        // 将图片用可点击组件包裹，便于弹窗无极缩放等操作（仅非链接内的图片）
+        htmlContent = this.wrapImagesForLightbox(htmlContent);
 
         // 使用内联模板（避免打包后文件路径问题）
         const template = this.getDefaultTemplate();
@@ -65,6 +70,34 @@ export class MarkdownRenderer {
         const finalHtml = template.replace('{{CONTENT}}', htmlContent);
 
         return finalHtml;
+    }
+
+    /**
+     * 为所有 <a href="..."> 添加 target="_blank" rel="noopener noreferrer"，预览中点击链接有效
+     */
+    private ensureLinksOpenInNewTab(html: string): string {
+        return html.replace(
+            /<a(\s[^>]*?)href=(["'])([^"']+)\2([^>]*)>/gi,
+            (_, before, quote, href, after) => {
+                const rest = before + after;
+                const hasTarget = /target\s*=/i.test(rest);
+                const hasRel = /rel\s*=/i.test(rest);
+                let extra = '';
+                if (!hasTarget) extra += ' target="_blank"';
+                if (!hasRel) extra += ' rel="noopener noreferrer"';
+                return `<a${before}href=${quote}${href}${quote}${after}${extra}>`;
+            }
+        );
+    }
+
+    /**
+     * 将渲染结果中的 <img> 用可点击的包装器包裹，供前端 lightbox 使用
+     */
+    private wrapImagesForLightbox(html: string): string {
+        return html.replace(
+            /<img(\s[^>]*)>/gi,
+            '<span class="mdp-image-wrap" role="button" tabindex="0" title="点击放大">$&</span>'
+        );
     }
 
     /**
@@ -107,20 +140,121 @@ export class MarkdownRenderer {
         a { color: #0366d6; text-decoration: none; }
         a:hover { text-decoration: underline; }
         img { max-width: 100%; height: auto; margin-bottom: 16px; }
+        .mdp-image-wrap { display: inline-block; cursor: pointer; margin-bottom: 16px; border-radius: 6px; outline: none; }
+        .mdp-image-wrap:focus { box-shadow: 0 0 0 2px #0366d6; }
+        .mdp-image-wrap img { margin-bottom: 0; vertical-align: middle; }
         hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0; }
         .mermaid { text-align: center; margin: 20px 0; }
+        /* 图片弹窗 Lightbox */
+        .mdp-lightbox { display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .mdp-lightbox.is-open { display: flex; }
+        .mdp-lightbox__inner { position: relative; width: 100%; height: 100%; overflow: hidden; }
+        .mdp-lightbox__img-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; cursor: grab; }
+        .mdp-lightbox__img-wrap:active { cursor: grabbing; }
+        .mdp-lightbox__img { max-width: none; max-height: none; min-width: 120px; min-height: 120px; object-fit: contain; pointer-events: none; user-select: none; }
+        .mdp-lightbox__toolbar { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(0,0,0,0.6); border-radius: 8px; z-index: 10001; }
+        .mdp-lightbox__btn { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.2); color: #fff; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+        .mdp-lightbox__btn:hover { background: rgba(255,255,255,0.35); }
+        .mdp-lightbox__btn-close { position: absolute; top: 16px; right: 16px; bottom: auto; left: auto; transform: none; }
+        .mdp-lightbox__scale-label { color: rgba(255,255,255,0.9); font-size: 13px; min-width: 52px; text-align: center; }
         .hljs { display: block; overflow-x: auto; padding: 16px; background: #f6f8fa; }
     </style>
 </head>
 <body>
     <div id="markdown-content">{{CONTENT}}</div>
+    <div class="mdp-lightbox" id="mdp-lightbox" aria-hidden="true">
+        <div class="mdp-lightbox__inner">
+            <div class="mdp-lightbox__img-wrap" id="mdp-lightbox-img-wrap">
+                <img class="mdp-lightbox__img" id="mdp-lightbox-img" alt="" referrerpolicy="no-referrer" />
+            </div>
+            <div class="mdp-lightbox__toolbar">
+                <button type="button" class="mdp-lightbox__btn" id="mdp-lightbox-zoom-out" title="缩小">−</button>
+                <span class="mdp-lightbox__scale-label" id="mdp-lightbox-scale">100%</span>
+                <button type="button" class="mdp-lightbox__btn" id="mdp-lightbox-zoom-in" title="放大">+</button>
+                <button type="button" class="mdp-lightbox__btn" id="mdp-lightbox-fit" title="适应窗口">⊡</button>
+                <button type="button" class="mdp-lightbox__btn" id="mdp-lightbox-center" title="居中">◎</button>
+            </div>
+            <button type="button" class="mdp-lightbox__btn mdp-lightbox__btn-close" id="mdp-lightbox-close" title="关闭">×</button>
+        </div>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script>
         mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
             mermaid.run();
+            initImageLightbox();
         });
+        function initImageLightbox() {
+            var box = document.getElementById('mdp-lightbox');
+            var img = document.getElementById('mdp-lightbox-img');
+            var wrap = document.getElementById('mdp-lightbox-img-wrap');
+            var scaleEl = document.getElementById('mdp-lightbox-scale');
+            var state = { scale: 1, x: 0, y: 0, drag: null };
+            function applyTransform() {
+                img.style.transform = 'translate(' + state.x + 'px,' + state.y + 'px) scale(' + state.scale + ')';
+                scaleEl.textContent = Math.round(state.scale * 100) + '%';
+            }
+            function openLightbox(src) {
+                img.src = src;
+                state.scale = 1; state.x = 0; state.y = 0;
+                applyTransform();
+                box.classList.add('is-open');
+                box.setAttribute('aria-hidden', 'false');
+            }
+            function closeLightbox() {
+                box.classList.remove('is-open');
+                box.setAttribute('aria-hidden', 'true');
+            }
+            document.querySelectorAll('.mdp-image-wrap').forEach(function(span) {
+                var im = span.querySelector('img');
+                if (!im) return;
+                span.addEventListener('click', function(e) {
+                    if (span.closest('a')) return;
+                    e.preventDefault();
+                    openLightbox(im.src);
+                });
+                span.addEventListener('keydown', function(e) {
+                    if (span.closest('a')) return;
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(im.src); }
+                });
+            });
+            box.addEventListener('click', function(e) { if (e.target === box) closeLightbox(); });
+            document.getElementById('mdp-lightbox-close').addEventListener('click', closeLightbox);
+            wrap.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                var delta = e.deltaY > 0 ? -0.12 : 0.12;
+                state.scale = Math.max(0.1, Math.min(20, state.scale + delta));
+                applyTransform();
+            }, { passive: false });
+            wrap.addEventListener('mousedown', function(e) {
+                if (e.button !== 0) return;
+                state.drag = { x: e.clientX - state.x, y: e.clientY - state.y };
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!state.drag) return;
+                state.x = e.clientX - state.drag.x;
+                state.y = e.clientY - state.drag.y;
+                applyTransform();
+            });
+            document.addEventListener('mouseup', function() { state.drag = null; });
+            document.getElementById('mdp-lightbox-zoom-in').addEventListener('click', function() {
+                state.scale = Math.min(20, state.scale + 0.25);
+                applyTransform();
+            });
+            document.getElementById('mdp-lightbox-zoom-out').addEventListener('click', function() {
+                state.scale = Math.max(0.1, state.scale - 0.25);
+                applyTransform();
+            });
+            document.getElementById('mdp-lightbox-fit').addEventListener('click', function() {
+                state.scale = 1; state.x = 0; state.y = 0;
+                applyTransform();
+            });
+            document.getElementById('mdp-lightbox-center').addEventListener('click', function() {
+                state.x = 0; state.y = 0;
+                applyTransform();
+            });
+        }
     </script>
 </body>
 </html>`;

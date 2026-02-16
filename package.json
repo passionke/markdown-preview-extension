@@ -92,7 +92,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "vsix": "npm run compile && npx vsce package"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",

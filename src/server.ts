@@ -136,11 +136,16 @@ export class PreviewServer {
 
             if (session) {
                 session.lastAccessed = Date.now();
-                // 将相对路径的 img src 重写为 /preview/{id}/asset/xxx，以便本服务器提供图片
                 const baseUrl = `/preview/${previewId}/asset/`;
-                const rewrittenHtml = session.htmlContent.replace(
+                // 相对路径 img src 重写，以便本服务器提供图片
+                let rewrittenHtml = session.htmlContent.replace(
                     /(<img[^>]+src=)(["'])(?!(?:https?:|\/|data:))([^"']+)\2/gi,
                     (_, before, quote, src) => `${before}${quote}${baseUrl}${src}${quote}`
+                );
+                // 相对路径 a href 重写，使链接点击可打开本地文件（新标签）
+                rewrittenHtml = rewrittenHtml.replace(
+                    /(<a\s[^>]*?href=)(["'])(?!(?:https?:|\/|#|mailto:))([^"']+)\2/gi,
+                    (_, before, quote, href) => `${before}${quote}${baseUrl}${encodeURIComponent(href)}${quote}`
                 );
                 res.writeHead(200, {
                     'Content-Type': 'text/html; charset=utf-8',

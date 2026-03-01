@@ -1,1 +1,84 @@
-{\n  "name": "markdown-preview-extension",\n  "version": "1.0.0",\n  "description": "Preview Markdown files in the browser.",\n  "main": "index.js",\n  "author": "passionke",\n  "license": "GPL-3.0-or-later",\n  "publisher": "passionke",\n  "repository": {\n    "type": "git",\n    "url": "https://github.com/passionke/markdown-preview-extension.git"\n  },\n  "bugs": {\n    "url": "https://github.com/passionke/markdown-preview-extension/issues"\n  },\n  "homepage": "https://github.com/passionke/markdown-preview-extension#readme"\n}
+{
+  "name": "markdown-preview-ext",
+  "displayName": "Markdown Preview in Browser",
+  "description": "Preview Markdown files in the browser.",
+  "version": "1.0.0",
+  "author": "kejiqing",
+  "license": "GPL-3.0-or-later",
+  "publisher": "passionke",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/passionke/markdown-preview-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/passionke/markdown-preview-extension/issues"
+  },
+  "homepage": "https://github.com/passionke/markdown-preview-extension#readme",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "main": "./out/extension.js",
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:markdownPreview.previewInBrowser"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownPreview.previewInBrowser",
+        "title": "Preview Markdown in Browser"
+      },
+      {
+        "command": "markdownPreview.startServer",
+        "title": "Start Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.stopServer",
+        "title": "Stop Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.restartServer",
+        "title": "Restart Preview Server",
+        "category": "Markdown Preview"
+      },
+      {
+        "command": "markdownPreview.showServerStatus",
+        "title": "Show Server Status",
+        "category": "Markdown Preview"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "markdownPreview.previewInBrowser",
+          "when": "resourceExtname == '.md'",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "markdownPreview.previewInBrowser",
+          "when": "editorLangId == 'markdown'",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.60.0",
+    "typescript": "^4.9.0"
+  },
+  "dependencies": {
+    "highlight.js": "^11.9.0",
+    "markdown-it": "^14.0.0"
+  }
+}

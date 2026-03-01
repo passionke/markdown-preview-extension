@@ -34,9 +34,7 @@ jobs:
         run: npm install -g @vscode/vsce
 
       - name: Package VSIX
-        run: vsce package --no-dependencies --no-yarn
-        env:
-          VSCE_SKIP_DEPENDENCY_CHECK: true
+        run: vsce package --no-yarn
 
       - name: Get version from package.json
         id: version
